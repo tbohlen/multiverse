@@ -1,0 +1,14 @@
+/*
+ * ID: game
+ * the board that contains the game
+ */
+#game {
+    display: block;
+    margin: auto;
+    width: 960px;
+    height: 540px;
+    border: 2px solid black;
+    -moz-border-radius: 2px 2px 2px 2px;
+    -webkit-border-radius: 2px 2px 2px 2px; 
+    border-radius: 2px 2px 2px 2px;
+}
