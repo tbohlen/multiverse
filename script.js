@@ -10,6 +10,15 @@ function Emitter() {
 }
 
 /*
+ * Function: distance
+ * Returns the distance between two points specified by (x, y) and (x2, y2).
+ *
+ */
+function distance(x1, y1, x2, y2) {
+    return Math.sqrt(Math.pow(x2-x1, 2) + Math.pow(y2-y1, 2))
+}
+
+/*
  * Method: attach
  * Attaches a listener to a given event.
  *
@@ -76,6 +85,8 @@ function Game() {
     this.offsetY = offset.top;
     this.drawElements = {};
     this.logicElements = {};
+    this.lastDrawIndex = -1;
+    this.lastLogicIndex = -1;
     this.drawFrame = 0;
     this.logicFrame = 0;
 }
@@ -98,6 +109,31 @@ Game.prototype.finishLevel = function(win) {
     }
 };
 
+/*
+ * Method: addSprite
+ * Adds an object to the drawElements and logicElements, or just one of the two
+ * lists.
+ *
+ * Parameters:
+ * sprite - the object to add to the lists
+ * draw - true if should be added to drawElements
+ * logic - true if should be added to logicElements
+ *
+ * Member Of: Game
+ */
+Game.prototype.addSprite = function(sprite, draw, logic) {
+    if (draw) {
+        this.lastDrawIndex++;
+        this.drawElements[this.lastDrawIndex] = sprite
+        sprite.drawIndex = this.lastDrawIndex;
+    }
+    if (logic) {
+        this.lastLogicIndex++;
+        this.logicElements[this.lastLogicIndex] = sprite;
+        sprite.logicIndex = this.lastLogicIndex;
+    }
+};
+
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -110,18 +146,26 @@ Game.prototype.finishLevel = function(win) {
  * Constructor: Blackhole
  * Builds a new blackhole object that can be moved around and displayed on
  * screen.
+ *
+ * Parameters:
+ * x - the x coord of the center
+ * y - the y coord of the center of the blackhole
+ * radius - the radius of the collision area of the blackhole
  */
-function Blackhole(x, y, width, height, drawIndex, logicIndex) {
+function Blackhole(x, y, radius) {
     this.timeStep = 0;
-    this.x = x;
-    this.y = y;
-    this.height = height;
-    this.width = width;
-    this.drawIndex = drawIndex;
-    this.logicIndex = logicIndex;
+    this.centerX = x;
+    this.centerY = y;
+    this.radius = radius;
+    this.height = radius;
+    this.width = radius;
+    this.x = this.centerX - this.radius/2
+    this.y = this.centerY - this.radius/2;
+    this.drawIndex = -1;
+    this.logicIndex = -1;
     this.alive = false;
-    this.madeAlive = false;
-    this.maxTimeSteps = 1000;
+    this.dead = false;
+    this.maxTimeSteps = 300;
 }
 
 /*
@@ -134,12 +178,10 @@ function Blackhole(x, y, width, height, drawIndex, logicIndex) {
  * Member Of: Blackhole
  */
 Blackhole.prototype.draw = function(game) {
-    if (!this.madeAlive) {
-        this.madeAlive = true;
+    if (!this.dead) {
         this.alive = true;
     }
-    game.context.fillStyle = "rgb(255, 255, 255)";
-    game.context.fillRect(this.x, this.y, this.width, this.height);
+    game.context.drawImage(game.blackholeImage, this.x, this.y);
     this.timeStep++;
     if (this.timeStep > this.maxTimeSteps) {
         this.kill(game);
@@ -157,7 +199,7 @@ Blackhole.prototype.draw = function(game) {
  * Member Of: Blackhole
  */
 Blackhole.prototype.contains = function(x, y) {
-    return x >= this.x && y >= this.y && x <= this.x + this.width && y <= this.y + this.height;
+    return distance(this.centerX, this.centerY, x, y) <= this.radius;
 };
 
 /*
@@ -189,8 +231,64 @@ Blackhole.prototype.doLogic = function(game) {
  */
 Blackhole.prototype.kill = function(game) {
     this.alive = false;
+    this.dead = true;
     delete game.drawElements[this.drawIndex];
     delete game.logicElements[this.logicIndex];
+};
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// Level ////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
+
+/*
+ * Constructor: Level
+ * A level represents all the logic behind a single level of the game.
+ * Generally, this means it has a doLogic function that is called by the main
+ * logic loop and displays various queues to the screen to help the player find
+ * the blackhole before it appears.
+ */
+function Level() {
+    this.started = false;
+    this.stopped = false;
+    this.sprites = {};
+}
+
+/*
+ * Method: doLogic
+ * Runs the logic of the level. This creates and removes sprites from the game.
+ *
+ * Parameters:
+ * game - the game object.
+ *
+ * Member Of: Level
+ */
+Level.prototype.doLogic = function(game) {
+    if (!this.stopped) {
+        this.started = true;
+    }
+    //if (Math.random() > 0.8) {
+        //var sprite = new Sprite();
+        //this.
+    //}
+};
+
+/*
+ * Method: end
+ * Ends the level by removing all its sprites from the game.
+ *
+ * Parameters:
+ * win - true if the player won, false otherwise
+ *
+ * Member Of: Level
+ */
+Level.prototype.end = function(win) {
+    for (var key in this.sprites) {
+        this.sprites[key].kill();
+    }
 };
 
 
@@ -269,23 +367,40 @@ function logicLoop(game) {
     }
 }
 
-$(document).ready(function() {
+/*
+ * Function: loadGame
+ * Loads the game, including necesary images, waiting until they are all loaded
+ * to continue.
+ */
+function loadGame(callback) {
     var game = new Game();
-    var blackhole = new Blackhole(10, 10, 10, 10, 0, 0);
-    game.drawElements[0] = blackhole;
-    game.logicElements[0] = blackhole;
+    game.blackholeImage = new Image();
+    console.log("Loading...");
+    game.blackholeImage.onload = function() {
+        callback(game);
+    };
+    game.blackholeImage.src = "images/blackhole.png";
+}
 
-    // start the loops
-    drawLoopId = window.setInterval(drawLoop, 1000/60, game);
-    logicLoopID = window.setInterval(logicLoop, 5, game); // 200 times per second
+$(document).ready(function() {
+    // load the game. This should be used to show a loading bar in future.
+    loadGame(function(game) {
+        console.log("loaded");
+        var blackhole = new Blackhole(100, 100, 50);
+        game.addSprite(blackhole, true, true);
 
-    ///////////////////////////////////////////////////////////////////////////
-    ///////////////////////////// Event Handlers //////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////
+        // start the loops
+        drawLoopId = window.setInterval(drawLoop, 1000/60, game);
+        logicLoopID = window.setInterval(logicLoop, 5, game); // 200 times per second
 
-    game.canvas.on('mousemove', function(ev) {
-        // when the mouse is moved, update the position
-        game.mouseX = ev.pageX - game.offsetX;
-        game.mouseY = ev.pageY - game.offsetY;
+        ///////////////////////////////////////////////////////////////////////////
+        ///////////////////////////// Event Handlers //////////////////////////////
+        ///////////////////////////////////////////////////////////////////////////
+
+        game.canvas.on('mousemove', function(ev) {
+            // when the mouse is moved, update the position
+            game.mouseX = ev.pageX - game.offsetX;
+            game.mouseY = ev.pageY - game.offsetY;
+        });
     });
 });
