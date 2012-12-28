@@ -1,13 +1,7 @@
 var drawLoopID;
 var logicLoopID;
-
-/*
- * Constructor: Emitter
- * Simple event emitter
- */
-function Emitter() {
-    this.listeners = {};
-}
+var LOGIC_LOOP_TIME = 1000/60;
+var DRAW_LOOP_TIME = 1000/30;
 
 /*
  * Function: distance
@@ -16,6 +10,57 @@ function Emitter() {
  */
 function distance(x1, y1, x2, y2) {
     return Math.sqrt(Math.pow(x2-x1, 2) + Math.pow(y2-y1, 2))
+}
+
+/*
+ * Function: addVectors
+ * Adds two vectors and returns the result
+ */
+function addVectors(vec1, vec2) {
+    var result = [];
+    var i;
+    for (i = 0; i < vec1.length;i++) {
+        result[i] = vec1[i] + vec2[i];
+    }
+    return result;
+}
+
+/*
+ * Function: scale
+ * Scales a vector by a scalar.
+ */
+function scale(vec, scalar) {
+    var result = [];
+    var i;
+    for (i = 0; i < vec.length;i++) {
+        result[i] = vec[i] * scalar;
+    }
+    return result;
+}
+
+/*
+ * Function: drawCircle
+ * Draws a circular path and closes it. The caller must have specified the fill
+ * and stroke and called fill and stroke.
+ * 
+ * Parameters:
+ * x - the x coord of the center
+ * y - the y coord of the center
+ * radius - the radius of the circle
+ * ctx - context to draw on
+ */
+function drawCircle(x, y, radius, ctx) {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI*2, true); 
+    ctx.closePath();
+}
+
+/*
+ * Constructor: Emitter
+ * Simple event emitter
+ */
+function Emitter() {
+    this.listeners = {};
 }
 
 /*
@@ -152,6 +197,113 @@ Game.prototype.resize = function() {
 
 
 ///////////////////////////////////////////////////////////////////////////////
+////////////////////////////// BurstEmitter ///////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
+/*
+ * Constructor: ParticleEmitter
+ * Constructs the abstract particle emitter. We will need far more specific
+ * emitters for every application.
+ *
+ * Parameters:
+ * x - the x coord of the emitter
+ * y - the y coord of the emitter
+ */
+function ParticleEmitter(x, y) {
+    this.x = x;
+    this.y = y;
+    this.radius = 10;
+    this.burstRadius = 50;
+    this.particleVelocity = 2;
+    this.particleNumber = 100;
+    this.startFrame = 0;
+    this.framesBetweenEmits = 30;
+    this.system = new ParticleSystem();
+    this.system.maxAge = 150;
+    this.dead = false;
+    this.alive = false;
+    this.logicIndex = -1;
+    this.drawIndex = -1;
+}
+
+/*
+ * Method: doLogic
+ * Runs the logic of the emitter. Namely, Emitting new particles and updating
+ * the system.
+ *
+ * Parameters:
+ * game - the game object.
+ *
+ * Member Of: ParticleEmitter
+ */
+ParticleEmitter.prototype.doLogic = function(game) {
+    if (this.alive && !this.dead) {
+        if ((game.logicFrame - this.startFrame)%this.framesBetweenEmits === 0) {
+            //emit a new round of particles
+            this.addParticles();
+        }
+
+        // step forward the system
+        eulerStep(this.system, LOGIC_LOOP_TIME/DRAW_LOOP_TIME);
+    }
+};
+
+/*
+ * Method: addParticles
+ * Adds more particles
+ *
+ * Member Of: ParticleEmitter
+ */
+ParticleEmitter.prototype.addParticles = function() {
+    var i;
+    var newParticles = []
+    for (i = 0; i < this.particleNumber; i++) {
+        var angle = 2 * Math.PI * i / this.particleNumber;
+        var velX = this.particleVelocity * Math.cos(angle);
+        var velY = this.particleVelocity * Math.sin(angle);
+        newParticles.push([this.x, this.y, velX, velY, 0]);
+    }
+    this.system.addParticles(newParticles);
+};
+
+/*
+ * Method: draw
+ * Draws the particle emitter and all its particles
+ *
+ * Parameters:
+ * game - the game object.
+ *
+ * Member Of: ParticleEmitter
+ */
+ParticleEmitter.prototype.draw = function(game) {
+    if (!this.dead && !this.alive) {
+        this.alive = true;
+        this.startFrame = game.logicFrame;
+        this.addParticles();
+    }
+    this.system.draw(game.context);
+    //game.context.fillStyle = "rgb(255, 255, 255)";
+    //drawCircle(this.x, this.y, this.radius, game.context);
+    //game.context.fill();
+};
+
+/*
+ * Method: kill
+ * Kills the particle emitter.
+ *
+ * Member Of: ParticleEmitter
+ */
+ParticleEmitter.prototype.kill = function(game) {
+    this.alive = false;
+    this.dead = true;
+    delete game.drawElements[this.drawIndex];
+    delete game.logicElements[this.logicIndex];
+};
+
+
+
+///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////// Blackhole ///////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -180,7 +332,8 @@ function Blackhole(x, y, radius) {
     this.logicIndex = -1;
     this.alive = false;
     this.dead = false;
-    this.maxTimeSteps = 300;
+    this.maxTimeSteps = 3000;
+    this.emitter = new ParticleEmitter(this.centerX, this.centerY);
 }
 
 /*
@@ -193,10 +346,14 @@ function Blackhole(x, y, radius) {
  * Member Of: Blackhole
  */
 Blackhole.prototype.draw = function(game) {
-    if (!this.dead) {
+    if (!this.dead && !this.alive) {
         this.alive = true;
+        game.addSprite(this.emitter, true, true);
     }
-    game.context.drawImage(game.blackholeImage, this.x, this.y);
+    //game.context.drawImage(game.blackholeImage, this.x, this.y);
+    //game.context.fillStyle = "rgb(200, 200, 200)";
+    //drawCircle(this.centerX, this.centerY, this.radius, game.context);
+    //game.context.fill();
     this.timeStep++;
     if (this.timeStep > this.maxTimeSteps) {
         this.kill(game);
@@ -406,12 +563,12 @@ $(document).ready(function() {
         // size the game and add the canvas to the screen
         game.resize();
 
-        var blackhole = new Blackhole(100, 100, 50);
+        var blackhole = new Blackhole(100, 100, 10);
         game.addSprite(blackhole, true, true);
 
         // start the loops
-        drawLoopId = window.setInterval(drawLoop, 1000/60, game);
-        logicLoopID = window.setInterval(logicLoop, 5, game); // 200 times per second
+        drawLoopId = window.setInterval(drawLoop, DRAW_LOOP_TIME, game);
+        logicLoopID = window.setInterval(logicLoop, LOGIC_LOOP_TIME, game); // 200 times per second
 
         ///////////////////////////////////////////////////////////////////////////
         ///////////////////////////// Event Handlers //////////////////////////////
