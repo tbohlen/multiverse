@@ -134,6 +134,21 @@ Game.prototype.addSprite = function(sprite, draw, logic) {
     }
 };
 
+/*
+ * Method: resize
+ * Resizes the game to fill the entire screen
+ *
+ * Member Of: Game
+ */
+Game.prototype.resize = function() {
+    this.canvas.height($(window).innerHeight());
+    this.canvas.width($(window).innerWidth());
+    this.height = this.canvas.height();
+    this.width = this.canvas.width();
+    this.canvas.attr("height", this.height);
+    this.canvas.attr("width", this.width);
+};
+
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -382,10 +397,15 @@ function loadGame(callback) {
     game.blackholeImage.src = "images/blackhole.png";
 }
 
+
 $(document).ready(function() {
+
     // load the game. This should be used to show a loading bar in future.
     loadGame(function(game) {
         console.log("loaded");
+        // size the game and add the canvas to the screen
+        game.resize();
+
         var blackhole = new Blackhole(100, 100, 50);
         game.addSprite(blackhole, true, true);
 
@@ -396,6 +416,8 @@ $(document).ready(function() {
         ///////////////////////////////////////////////////////////////////////////
         ///////////////////////////// Event Handlers //////////////////////////////
         ///////////////////////////////////////////////////////////////////////////
+
+        //$(document).on("resize", game.resize);
 
         game.canvas.on('mousemove', function(ev) {
             // when the mouse is moved, update the position

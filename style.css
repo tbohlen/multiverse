@@ -1,3 +1,7 @@
+body {
+    margin:0px;
+    padding:0px;
+}
 /*
  * ID: game
  * the board that contains the game
@@ -5,10 +9,4 @@
 #game {
     display: block;
     margin: auto;
-    width: 960px;
-    height: 540px;
-    /*border: 10px solid #444;*/
-    /*-moz-border-radius: 10px 10px 10px 10px;*/
-    /*-webkit-border-radius: 10px 10px 10px 10px; */
-    /*border-radius: 10px 10px 10px 10px;*/
 }
