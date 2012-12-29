@@ -2,6 +2,7 @@ var drawLoopID;
 var logicLoopID;
 var LOGIC_LOOP_TIME = 5;
 var DRAW_LOOP_TIME = 1000/30;
+var colors = [[200, 75, 75], [75, 200, 125], [100, 100, 200], [175, 175, 50]]
 
 
 
@@ -63,7 +64,7 @@ Game.prototype.finishLevel = function(win) {
 Game.prototype.addSprite = function(sprite, draw, logic) {
     if (draw) {
         this.lastDrawIndex++;
-        this.drawElements[this.lastDrawIndex] = sprite
+        this.drawElements[this.lastDrawIndex] = sprite;
         sprite.drawIndex = this.lastDrawIndex;
     }
     if (logic) {
@@ -112,7 +113,7 @@ Game.prototype.resize = function() {
  * radius - the radius of the collision area of the blackhole
  */
 function Blackhole(x, y, radius) {
-    this.timeStep = 0;
+    this.age = 0;
     this.centerX = x;
     this.centerY = y;
     this.radius = radius;
@@ -123,7 +124,7 @@ function Blackhole(x, y, radius) {
     this.drawIndex = -1;
     this.logicIndex = -1;
     this.maxTimeSteps = 3000;
-    this.system = new ParticleSystem(this.centerX, this.centerY, this.radius);
+    this.system = new ParticleSystem(this.centerX, this.centerY);
 }
 
 /*
@@ -153,7 +154,7 @@ Blackhole.prototype.draw = function(game) {
     game.context.fillStyle = "rgb(0, 0, 0)";
     drawCircle(this.centerX, this.centerY, this.radius, game.context);
     game.context.fill();
-    this.timeStep++;
+    this.age++;
 };
 
 /*
@@ -198,11 +199,20 @@ Blackhole.prototype.doLogic = function(game) {
  * Member Of: Blackhole
  */
 Blackhole.prototype.isDead = function(game) {
-    if (this.timeStep > this.maxTimeSteps) {
-        this.system.dead = true;
-        return true;
-    }
-    return false;
+    return this.age > this.maxAge;
+};
+
+/*
+ * Method: kill
+ * Cleans up the blackhole as it is killed.
+ *
+ * Parameters:
+ * game - the game obj
+ *
+ * Member Of: Blackhole
+ */
+Blackhole.prototype.kill = function(game) {
+    this.system.dead = true;
 };
 
 
@@ -221,11 +231,25 @@ Blackhole.prototype.isDead = function(game) {
  * the blackhole before it appears.
  */
 function Level() {
-    this.started = false;
-    this.stopped = false;
+    this.won = false;
     this.sprites = {};
     this.startFrame = 0;
+    this.logicIndex = -1;
 }
+
+/*
+ * Method: show
+ * Starts the level by adding it into the game.
+ *
+ * Parameters:
+ * game - the game object
+ *
+ * Member Of: Level
+ */
+Level.prototype.show = function(game) {
+    game.addSprite(this, false, true);
+    this.startFrame = game.logicFrame;
+};
 
 /*
  * Method: doLogic
@@ -237,29 +261,37 @@ function Level() {
  * Member Of: Level
  */
 Level.prototype.doLogic = function(game) {
-    if (!this.started && !this.stopped) {
-        this.started = true;
-        this.startFrame = game.logicFrame;
+    if (Math.random() > 0.99) {
+        var burst = new BurstSystem(game.width * Math.random(), game.height * Math.random(), 20, colors[Math.floor(Math.random() * 4)]);
+        game.addSprite(burst, true, true);
     }
-    if (Math.random() > 0.8) {
-        var sprite = new Sprite();
-        game.addSprite(sprite, true, true);
+    if (Math.random() > 0.999) {
+        var blackhole = new Blackhole(game.width * Math.random(), game.height * Math.random(), 50);
+        game.addSprite(blackhole, true, true);
     }
 };
 
 /*
- * Method: end
- * Ends the level by removing all its sprites from the game.
+ * Method: kill
+ * Ends the level. Right now this does nothing.
  *
  * Parameters:
- * win - true if the player won, false otherwise
+ * game - the game obj
  *
  * Member Of: Level
  */
-Level.prototype.end = function(win) {
-    for (var key in this.sprites) {
-        this.sprites[key].kill();
-    }
+Level.prototype.kill = function(game) {
+};
+
+/*
+ * Method: isDead
+ * Checks to see if the level is over and can be disposed of. If it has been
+ * won, it can be disposed of.
+ *
+ * Member Of: Level
+ */
+Level.prototype.isDead = function() {
+    return this.won;
 };
 
 
@@ -318,6 +350,7 @@ function drawLoop(game) {
         if (game.drawElements.hasOwnProperty(key)) {
             var element = game.drawElements[key];
             if (element.isDead()) {
+                element.kill();
                 delete game.drawElements[element.drawIndex];
                 delete game.logicElements[element.logicIndex];
             }
@@ -338,7 +371,7 @@ function logicLoop(game) {
     logicUpdate(game);
 
     // run all logicElements
-    for (var key in game.drawElements) {
+    for (var key in game.logicElements) {
         if (game.logicElements.hasOwnProperty(key)) {
             game.logicElements[key].doLogic(game);
         }
@@ -369,8 +402,8 @@ $(document).ready(function() {
         // size the game and add the canvas to the screen
         game.resize();
 
-        var blackhole = new Blackhole(400, 200, 10);
-        blackhole.show(game);
+        var level = new Level();
+        level.show(game);
 
         // start the loops
         drawLoopId = window.setInterval(drawLoop, DRAW_LOOP_TIME, game);

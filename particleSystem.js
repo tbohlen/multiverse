@@ -70,21 +70,19 @@ function trapezoidalStep(system, timeStep) {
  * x - the x coord of the system
  * y - the y coord of the system
  */
-function ParticleSystem(x, y, radius) {
+function ParticleSystem(x, y) {
     this.x = x;
     this.y = y;
-    this.burstRadius = 100;
-    this.particleVelocity = 4;
-    this.emitRate = 2;
-    this.maxAge = this.burstRadius/this.particleVelocity;
     this.particles = {};
     this.lastIndex = -1;
-    this.length = 30;
-    this.width = 2;
-    this.maxAge = 10;
     this.dead = false;
     this.logicIndex = -1;
     this.drawIndex = -1;
+
+    this.burstRadius = 100;
+    this.particleVelocity = 4;
+    this.emitRate = 2;
+    this.maxParticleAge = this.burstRadius/this.particleVelocity;
 }
 
 /*
@@ -106,7 +104,7 @@ ParticleSystem.prototype.addParticles = function(newStates) {
         var velX = this.particleVelocity * (Math.cos(angle) - 0.3 + Math.random() * 0.6);
         var velY = this.particleVelocity * (Math.sin(angle) - 0.3 + Math.random() * 0.6);
         var particle = new Particle(this.x, this.y, velX, velY);
-        particle.maxAge = this.maxAge;
+        particle.maxAge = this.maxParticleAge;
         this.lastIndex++;
         this.particles[this.lastIndex] = particle;
     }
@@ -286,6 +284,54 @@ Particle.prototype.isDead = function() {
 
 
 ///////////////////////////////////////////////////////////////////////////////
+////////////////////////////// ColorParticles /////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
+
+/*
+ * Constructor: ColorParticle
+ * Builds a new color particle. It is essentially identical to the basic
+ * particle, but it has a controllable color/
+ */
+function ColorParticle(x, y, velX, velY, color) {
+    Particle.call(this, x, y, velX, velY, color);
+    this.state = [x, y, velX, velY, 0];
+    this.maxAge = 10;
+    this.color = color;
+}
+
+inherits(ColorParticle, Particle);
+
+/*
+ * Method: radius
+ * Returns the radius of the particle
+ *
+ * Member Of: Particle
+ */
+ColorParticle.prototype.radius = 2;
+
+/*
+ * Method: draw
+ * Draws the particle.
+ *
+ * Parameters:
+ * game - the game object.
+ *
+ * Member Of: Particle
+ */
+ColorParticle.prototype.draw = function(game) {
+    var scaleNum = 1.5 - 1.5*Math.pow((this.state[4]/this.maxAge), 2);
+    var color = scale(this.color, scaleNum);
+    var radius = this.radius/scaleNum;
+    game.context.fillStyle = "rgb(" + Math.floor(color[0]).toString() + ", " + Math.floor(color[1]).toString() + ", " + Math.floor(color[2]).toString() + ")";
+    drawCircle(this.state[0], this.state[1], this.radius, game.context);
+    game.context.fill();
+};
+
+
+
+///////////////////////////////////////////////////////////////////////////////
 ////////////////////////// Burst Particles System /////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -295,12 +341,132 @@ Particle.prototype.isDead = function() {
  * Constructor: BurstSystem
  * A particle system where the particles simply fly straight out and continue
  * for quite a while.
+ *
+ * Parameters:
+ * x - the x pos
+ * y - the y pos
+ * radius - the radius of the burst
+ * color - the color of the particles emitted
  */
-function BurstSystem() {
-    // body
+function BurstSystem(x, y, radius, color) {
+    ParticleSystem.call(this, x, y)
+
+    this.burstRadius = 600;
+    this.particleVelocity = 15;
+    this.emitRate = 30;
+    this.age = 0;
+    this.color = color;
+    this.maxEmittingAge = 15;
+    this.maxParticleAge = this.burstRadius/this.particleVelocity;
+    this.accel = -0.8;
+    this.velVariance = 0.01;
 }
 
 inherits(BurstSystem, ParticleSystem);
+
+/*
+ * Method: addParticles
+ * Adds new particles to the system. These particles' states are simply appended
+ * to the existing state, so they must be formatted correctly (each state a
+ * vector of x, y, velX, velY, and time).
+ *
+ * Parameters:
+ * newStates - the states of the new particles to add to the particle system
+ *
+ * Member Of: ParticleSystem
+ */
+BurstSystem.prototype.addParticles = function(newStates) {
+    
+    var newNum = Math.floor(Math.random() * this.emitRate);
+    for (i = 0; i < newNum; i++) {
+        var angle = 2 * Math.PI * (i + Math.random() - 0.5) / newNum;
+        var velX = this.particleVelocity * (Math.cos(angle) - this.velVariance/2 + Math.random() * this.velVariance);
+        var velY = this.particleVelocity * (Math.sin(angle) - this.velVariance/2 + Math.random() * this.velVariance);
+        var particle = new ColorParticle(this.x, this.y, velX, velY, scale(this.color, (1.5 - 1.5*this.age/this.maxEmittingAge)));
+        particle.maxAge = this.maxParticleAge;
+        this.lastIndex++;
+        this.particles[this.lastIndex] = particle;
+    }
+};
+
+/*
+ * Method: doLogic
+ * Runs the logic of the system. Namely, emitting new particles and updating
+ * the system.
+ *
+ * Parameters:
+ * game - the game object.
+ *
+ * Member Of: ParticleSystem
+ */
+BurstSystem.prototype.doLogic = function(game) {
+    if (this.age < this.maxEmittingAge) {
+        this.addParticles();
+        // step forward the system
+    }
+    trapezoidalStep(this, LOGIC_LOOP_TIME/DRAW_LOOP_TIME);
+    this.age++;
+};
+
+/*
+ * Method: evalDeriv
+ * Evaluates the derivative of the given system state. This does not use
+ * "this.particles"! It uses whatever state is passed to it. Make sure to pass in a
+ * state of the correct length. Incorrect behavior would certainly result if
+ * you didn't.
+ *
+ * This particular implementation simply continues the motions of the particles
+ * in a straight line with decreasing velocity.
+ *
+ * This function takes a state not a particle list.
+ *
+ * Parameters:
+ * state - the state at which to calculate the force
+ *
+ * Member Of: BurstSystem
+ */
+BurstSystem.prototype.evalDeriv = function(state) {
+    var key;
+    var deriv = {};
+    for (key in state) {
+        var particle = state[key];
+        var cosine = 0.0;
+        var sine = 0.0;
+        if (particle[0] - this.x != 0) {
+            var angle = Math.atan((particle[1] - this.y) / (particle[0] - this.x));
+            if (particle[0] - this.x < 0) {
+                angle = angle + Math.PI;
+            }
+            cosine = Math.cos(angle);
+            sine = Math.sin(angle);
+        }
+        deriv[key] = [particle[2], particle[3], this.accel * cosine, this.accel * sine, 1];
+    }
+    return deriv;
+};
+
+/*
+ * Method: isDead
+ * Checks to see if the particle system is dead and can be removed. It is dead
+ * when it has lived longer than some minimum and all its particles are dead.
+ *
+ * Member Of: BurstSystem
+ */
+BurstSystem.prototype.isDead = function() {
+    return this.age > this.maxEmittingAge && Object.keys(this.particles).length == 0;
+};
+
+/*
+ * Method: kill
+ * Cleans up when dying.
+ *
+ * Parameters:
+ * game - the game object
+ *
+ * Member Of: BurstSystem
+ */
+BurstSystem.prototype.kill = function(game) {
+};
 
 
 
@@ -315,7 +481,8 @@ inherits(BurstSystem, ParticleSystem);
  * A particle system where all particles are accelerated towards the center.
  */
 function WormholeSystem() {
-    // body
+    this.length = 30;
+    this.width = 2;
 }
 
 inherits(WormholeSystem, ParticleSystem);
