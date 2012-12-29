@@ -1,6 +1,6 @@
 var drawLoopID;
 var logicLoopID;
-var LOGIC_LOOP_TIME = 5;
+var LOGIC_LOOP_TIME = 4;
 var DRAW_LOOP_TIME = 1000/30;
 var colors = [[200, 75, 75], [75, 200, 125], [100, 100, 200], [175, 175, 50]]
 
@@ -123,8 +123,8 @@ function Blackhole(x, y, radius) {
     this.y = this.centerY - this.radius/2;
     this.drawIndex = -1;
     this.logicIndex = -1;
-    this.maxTimeSteps = 3000;
-    this.system = new ParticleSystem(this.centerX, this.centerY);
+    this.maxAge = 15;
+    this.system = new BlackholeSystem(this.centerX, this.centerY, this.radius, this.maxAge);
 }
 
 /*
@@ -151,7 +151,7 @@ Blackhole.prototype.show = function(game) {
  * Member Of: Blackhole
  */
 Blackhole.prototype.draw = function(game) {
-    game.context.fillStyle = "rgb(0, 0, 0)";
+    game.context.fillStyle = "rgb(0,0,0)";
     drawCircle(this.centerX, this.centerY, this.radius, game.context);
     game.context.fill();
     this.age++;
@@ -199,7 +199,7 @@ Blackhole.prototype.doLogic = function(game) {
  * Member Of: Blackhole
  */
 Blackhole.prototype.isDead = function(game) {
-    return this.age > this.maxAge;
+    return this.age > this.maxAge && Object.keys(this.system.particles).length == 0;
 };
 
 /*
@@ -262,12 +262,13 @@ Level.prototype.show = function(game) {
  */
 Level.prototype.doLogic = function(game) {
     if (Math.random() > 0.99) {
-        var burst = new BurstSystem(game.width * Math.random(), game.height * Math.random(), 20, colors[Math.floor(Math.random() * 4)]);
+        var burst = new BurstSystem(game.width * Math.random(), game.height * Math.random(), colors[Math.floor(Math.random() * 4)]);
         game.addSprite(burst, true, true);
     }
-    if (Math.random() > 0.999) {
-        var blackhole = new Blackhole(game.width * Math.random(), game.height * Math.random(), 50);
-        game.addSprite(blackhole, true, true);
+
+    if (Math.random() > 0.9995) {
+        var blackhole = new Blackhole(game.width * 0.5, game.height*0.5, 20);
+        blackhole.show(game);
     }
 };
 

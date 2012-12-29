@@ -7,6 +7,14 @@ function inherits(child, parent) {
 }
 
 /*
+ * Function: boundedRand
+ * Returns a random value uniformly distributed between min and max.
+ */
+function boundedRand(min, max) {
+    return min + Math.random() * (max - min);
+}
+
+/*
  * Function: distance
  * Returns the distance between two points specified by (x, y) and (x2, y2).
  *

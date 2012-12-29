@@ -180,6 +180,13 @@ ParticleSystem.prototype.setState = function(newState) {
  * Member Of: ParticleSystem
  */
 ParticleSystem.prototype.doLogic = function(game) {
+    var key;
+    for (key in this.particles) {
+        var particle = this.particles[key];
+        if (particle.isDead(this)) {
+            delete this.particles[key];
+        }
+    }
     this.addParticles();
     // step forward the system
     trapezoidalStep(this, LOGIC_LOOP_TIME/DRAW_LOOP_TIME);
@@ -199,12 +206,7 @@ ParticleSystem.prototype.draw = function(game) {
     var key;
     for (key in this.particles) {
         var particle = this.particles[key];
-        if (particle.isDead()) {
-            delete this.particles[key];
-        }
-        else {
-            this.particles[key].draw(game);
-        }
+        this.particles[key].draw(game);
     }
 };
 
@@ -275,7 +277,7 @@ Particle.prototype.draw = function(game) {
  *
  * Member Of: Particle
  */
-Particle.prototype.isDead = function() {
+Particle.prototype.isDead = function(system) {
     return this.state[4] > this.maxAge ||
         this.state[0] < -75 || this.state[0] > window.game.width + 75 ||
         this.state[1] < -75 || this.state[1] > window.game.height + 75;
@@ -295,7 +297,7 @@ Particle.prototype.isDead = function() {
  * particle, but it has a controllable color/
  */
 function ColorParticle(x, y, velX, velY, color) {
-    Particle.call(this, x, y, velX, velY, color);
+    Particle.call(this, x, y, velX, velY);
     this.state = [x, y, velX, velY, 0];
     this.maxAge = 10;
     this.color = color;
@@ -332,6 +334,70 @@ ColorParticle.prototype.draw = function(game) {
 
 
 ///////////////////////////////////////////////////////////////////////////////
+//////////////////////////// BlackholeParticles ///////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
+
+/*
+ * Constructor: BlackholeParticle
+ * Builds a new color particle. It is essentially identical to the basic
+ * particle, but it has a controllable color/
+ */
+function BlackholeParticle(x, y, velX, velY, color, radius) {
+    ColorParticle.call(this, x, y, velX, velY, color);
+    this.state = [x, y, velX, velY, 0];
+    this.maxAge = 10;
+    this.color = color;
+    this.blackholeRadius = radius;
+}
+
+inherits(BlackholeParticle, Particle);
+
+/*
+ * Method: radius
+ * Returns the radius of the particle
+ *
+ * Member Of: BlackholeParticle
+ */
+BlackholeParticle.prototype.radius = 5;
+
+/*
+ * Method: draw
+ * Draws the particle.
+ *
+ * Parameters:
+ * game - the game object.
+ *
+ * Member Of: BlackholeParticle
+ */
+BlackholeParticle.prototype.draw = function(game) {
+    var scaleNum = 1.5 - 1.5*Math.pow((this.state[4]/this.maxAge), 2);
+    var color = scale(this.color, scaleNum);
+    var radius = this.radius/scaleNum;
+    game.context.fillStyle = "rgb(" + Math.floor(color[0]).toString() + ", " + Math.floor(color[1]).toString() + ", " + Math.floor(color[2]).toString() + ")";
+    drawCircle(this.state[0], this.state[1], this.radius, game.context);
+    game.context.fill();
+};
+
+/*
+ * Method: isDead
+ * Returns true if the particle is dead and false otherwise. Dead particles are
+ * removed and never shown again. This particles dies if it is moved off screen
+ * or older than its maxAge attribute.
+ *
+ * Member Of: BlackholeParticle
+ */
+BlackholeParticle.prototype.isDead = function(system) {
+    return this.state[4] > this.maxAge ||
+        this.state[0] < -75 || this.state[0] > window.game.width + 75 ||
+        this.state[1] < -75 || this.state[1] > window.game.height + 75 ||
+        distance(this.state[0], this.state[1], system.x, system.y) < this.blackholeRadius;
+};
+
+
+
+///////////////////////////////////////////////////////////////////////////////
 ////////////////////////// Burst Particles System /////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -345,21 +411,19 @@ ColorParticle.prototype.draw = function(game) {
  * Parameters:
  * x - the x pos
  * y - the y pos
- * radius - the radius of the burst
  * color - the color of the particles emitted
  */
-function BurstSystem(x, y, radius, color) {
+function BurstSystem(x, y, color) {
     ParticleSystem.call(this, x, y)
 
-    this.burstRadius = 600;
-    this.particleVelocity = 15;
+    this.particleVelocity = 6;
     this.emitRate = 30;
     this.age = 0;
     this.color = color;
     this.maxEmittingAge = 15;
-    this.maxParticleAge = this.burstRadius/this.particleVelocity;
+    this.maxParticleAge = 10;
     this.accel = -0.8;
-    this.velVariance = 0.01;
+    this.velVar = 0.01;
 }
 
 inherits(BurstSystem, ParticleSystem);
@@ -373,15 +437,15 @@ inherits(BurstSystem, ParticleSystem);
  * Parameters:
  * newStates - the states of the new particles to add to the particle system
  *
- * Member Of: ParticleSystem
+ * Member Of: BurstSystem
  */
 BurstSystem.prototype.addParticles = function(newStates) {
     
     var newNum = Math.floor(Math.random() * this.emitRate);
     for (i = 0; i < newNum; i++) {
         var angle = 2 * Math.PI * (i + Math.random() - 0.5) / newNum;
-        var velX = this.particleVelocity * (Math.cos(angle) - this.velVariance/2 + Math.random() * this.velVariance);
-        var velY = this.particleVelocity * (Math.sin(angle) - this.velVariance/2 + Math.random() * this.velVariance);
+        var velX = this.particleVelocity * (Math.cos(angle) - this.velVar/2 + Math.random() * this.velVar);
+        var velY = this.particleVelocity * (Math.sin(angle) - this.velVar/2 + Math.random() * this.velVar);
         var particle = new ColorParticle(this.x, this.y, velX, velY, scale(this.color, (1.5 - 1.5*this.age/this.maxEmittingAge)));
         particle.maxAge = this.maxParticleAge;
         this.lastIndex++;
@@ -397,9 +461,16 @@ BurstSystem.prototype.addParticles = function(newStates) {
  * Parameters:
  * game - the game object.
  *
- * Member Of: ParticleSystem
+ * Member Of: BurstSystem
  */
 BurstSystem.prototype.doLogic = function(game) {
+    var key;
+    for (key in this.particles) {
+        var particle = this.particles[key];
+        if (particle.isDead(this)) {
+            delete this.particles[key];
+        }
+    }
     if (this.age < this.maxEmittingAge) {
         this.addParticles();
         // step forward the system
@@ -471,44 +542,151 @@ BurstSystem.prototype.kill = function(game) {
 
 
 ///////////////////////////////////////////////////////////////////////////////
-///////////////////////// Wormhole Particles System ///////////////////////////
+///////////////////////// Blackhole Particles System ///////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
 
 
 /*
- * Constructor: WormholeSystem
+ * Constructor: BlackholeSystem
  * A particle system where all particles are accelerated towards the center.
  */
-function WormholeSystem() {
-    this.length = 30;
-    this.width = 2;
+function BlackholeSystem(x, y, radius, maxAge) {
+    ParticleSystem.call(this, x, y);
+
+    this.blackholeRadius = radius + 40;
+    this.particleVelocity = 24.4;
+    this.emitRate = 15;
+    this.maxParticleAge = 500;
+    this.mass = 80000000;
+    this.velVar = 0.02;
+    this.maxDist = 350;
+    this.minDist = 349;
+    this.maxEmittingAge = maxAge * DRAW_LOOP_TIME/LOGIC_LOOP_TIME;
+    this.streams = 5;
+    this.age = 0;
+    this.dead = false;
+    this.color = [40, 10, 50];
 }
 
-inherits(WormholeSystem, ParticleSystem);
+inherits(BlackholeSystem, ParticleSystem);
 
 /*
- * Method: drawParticle
- * Draws the given particle to the screen.
+ * Method: doLogic
+ * Runs the logic of the system. Namely, emitting new particles and updating
+ * the system.
  *
  * Parameters:
- * particle - the particle to draw
+ * game - the game object.
  *
- * Member Of: WormholeSystem
+ * Member Of: BlackholeSystem
  */
-WormholeSystem.prototype.drawParticle = function(particle) {
-    var scaleNum = 1.0 - (this.age/this.maxAge);
-    var color = scale([255.0, 255.0, 255.0], scaleNum);
-    var length = this.length * scaleNum;
-    var width = this.width/scaleNum;
-    var angle = Math.atan(-this.velY/this.velX);
-    var cosine = Math.cos(angle);
-    var sine = Math.sin(angle);
-    ctx.lineWidth = width;
-    ctx.strokeStyle = "rgb(" + Math.floor(color[0]).toString() + ", " + Math.floor(color[1]).toString() + ", " + Math.floor(color[2]).toString() + ")";
-    ctx.beginPath();
-    ctx.moveTo(this.x - length * 0.5 * cosine, this.y + length * 0.5 * sine);
-    ctx.lineTo(this.x + length * 0.5 * cosine, this.y - length * 0.5 * sine);
-    ctx.closePath();
-    ctx.stroke();
+BlackholeSystem.prototype.doLogic = function(game) {
+    var key;
+    for (key in this.particles) {
+        var particle = this.particles[key];
+        if (particle.isDead(this)) {
+            delete this.particles[key];
+        }
+    }
+    if (this.age < this.maxEmittingAge && !this.dead) {
+        this.addParticles();
+    }
+    // step forward the system
+    trapezoidalStep(this, LOGIC_LOOP_TIME/DRAW_LOOP_TIME);
+    this.age++;
+};
+
+/*
+ * Method: addParticles
+ * Adds new particles to the system. These particles' states are simply appended
+ * to the existing state, so they must be formatted correctly (each state a
+ * vector of x, y, velX, velY, and time).
+ *
+ * Parameters:
+ * newStates - the states of the new particles to add to the particle system
+ *
+ * Member Of: BlackholeSystem
+ */
+BlackholeSystem.prototype.addParticles = function(newStates) {
+    var newNum = Math.floor(Math.random() * this.emitRate);
+    for (i = 0; i < newNum; i++) {
+        var angle = 2 * Math.PI * Math.floor(boundedRand(0, this.streams))/this.streams;
+
+        // place the particle a random distance away from the center at this
+        // angle
+        var dist = boundedRand(this.minDist, this.maxDist);
+        var x = Math.cos(angle) * dist;
+        var y = Math.sin(angle) * dist;
+
+        // take the angle at 90 degrees, varied, as the start vel
+        var velX = this.particleVelocity * (Math.cos(angle + Math.PI/2) - this.velVar/2 + Math.random() * this.velVar);
+        var velY = this.particleVelocity * (Math.sin(angle + Math.PI/2) - this.velVar/2 + Math.random() * this.velVar);
+
+        var particle = new BlackholeParticle(this.x + x, this.y + y, velX, velY, scale(this.color, boundedRand(0.3, 0.8)), this.blackholeRadius);
+        particle.maxAge = this.maxParticleAge;
+        this.lastIndex++;
+        this.particles[this.lastIndex] = particle;
+    }
+};
+
+/*
+ * Method: evalDeriv
+ * Evaluates the derivative of the given system state. This does not use
+ * "this.particles"! It uses whatever state is passed to it. Make sure to pass in a
+ * state of the correct length. Incorrect behavior would certainly result if
+ * you didn't.
+ *
+ * This particular implementation simply continues the motions of the particles
+ * in a straight line with decreasing velocity.
+ *
+ * This function takes a state not a particle list.
+ *
+ * Parameters:
+ * state - the state at which to calculate the force
+ *
+ * Member Of: BlackholeSystem
+ */
+BlackholeSystem.prototype.evalDeriv = function(state) {
+    var key;
+    var deriv = {};
+    for (key in state) {
+        var particle = state[key];
+        var cosine = 0.0;
+        var sine = 0.0;
+        var dist = distance(particle[0], particle[1], this.x, this.y);
+        if (particle[0] - this.x != 0) {
+            var angle = Math.atan((particle[1] - this.y) / (particle[0] - this.x));
+            if (particle[0] - this.x < 0) {
+                angle = angle + Math.PI;
+            }
+            cosine = Math.cos(angle);
+            sine = Math.sin(angle);
+        }
+        deriv[key] = [particle[2], particle[3], -1 *this.mass * cosine / Math.pow(dist, 3), -1 *this.mass * sine/Math.pow(dist, 3), 1];
+    }
+    return deriv;
+};
+
+/*
+ * Method: isDead
+ * Checks to see if the particle system is dead and can be removed. It is dead
+ * when it has lived longer than some minimum and all its particles are dead.
+ *
+ * Member Of: BlackholeSystem
+ */
+BlackholeSystem.prototype.isDead = function() {
+    return this.dead && Object.keys(this.particles).length == 0;
+};
+
+/*
+ * Method: kill
+ * Cleans up when dying.
+ *
+ * Parameters:
+ * game - the game object
+ *
+ * Member Of: BlackholeSystem
+ */
+BlackholeSystem.prototype.kill = function(game) {
 };
