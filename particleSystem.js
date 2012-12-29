@@ -277,8 +277,8 @@ Particle.prototype.draw = function(game) {
  */
 Particle.prototype.isDead = function() {
     return this.state[4] > this.maxAge ||
-        this.state[0] < 0 || this.state[0] > window.game.width ||
-        this.state[1] < 0 || this.state[1] > window.game.height;
+        this.state[0] < -75 || this.state[0] > window.game.width + 75 ||
+        this.state[1] < -75 || this.state[1] > window.game.height + 75;
 };
 
 
