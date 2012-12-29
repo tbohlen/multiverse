@@ -9,7 +9,7 @@
  * provided particle system.
  */
 function eulerStep(system, timeStep) {
-    var currentState = system.copyState();
+    var currentState = system.getState();
     var deriv = system.evalDeriv(currentState);
     var key;
     for (key in currentState) {
@@ -17,12 +17,8 @@ function eulerStep(system, timeStep) {
 
         currentState[key] = addVectors(particle, scale(deriv[key], timeStep));
 
-        // test for dead particles
-        if (particle[4] > system.getMaxAge() || particle[0] < 0 || particle[0] > window.game.width || particle[1] < 0 || particle[1] > window.game.height) {
-            delete currentState[key];
-        }
     }
-    system.state = currentState;
+    system.setState(currentState);
 }
 
 /*
@@ -31,7 +27,7 @@ function eulerStep(system, timeStep) {
  */
 function trapezoidalStep(system, timeStep) {
     // find the next state, given a full euler step
-    var currentState = system.copyState();
+    var currentState = system.getState();
     var deriv = system.evalDeriv(currentState);
     var nextState = {};
     var key;
@@ -49,14 +45,9 @@ function trapezoidalStep(system, timeStep) {
         var particle = currentState[key];
 
         currentState[key] = addVectors(particle, scale(addVectors(deriv[key], nextDeriv[key]), timeStep/2));
-
-        // test for dead particles
-        if (particle[4] > system.getMaxAge() || particle[0] < 0 || particle[0] > window.game.width || particle[1] < 0 || particle[1] > window.game.height) {
-            delete currentState[key];
-        }
     }
 
-    system.state = currentState;
+    system.setState(currentState);
 }
 
 
@@ -76,7 +67,7 @@ function trapezoidalStep(system, timeStep) {
  * a particles x, y, velX, velY, and time.
  */
 function ParticleSystem() {
-    this.state = {};
+    this.particles = {};
     this.lastIndex = -1;
     this.length = 30;
     this.width = 2;
@@ -98,19 +89,21 @@ ParticleSystem.prototype.addParticles = function(newStates) {
     var i;
     for (i = 0; i < newStates.length; i++) {
         this.lastIndex++;
-        this.state[this.lastIndex] = newStates[i];
+        this.particles[this.lastIndex] = newStates[i];
     }
 };
 
 /*
  * Method: evalDeriv
  * Evaluates the derivative of the given system state. This does not use
- * "this.state"! It uses whatever state is passed to it. Make sure to pass in a
+ * "this.particles"! It uses whatever state is passed to it. Make sure to pass in a
  * state of the correct length. Incorrect behavior would certainly result if
  * you didn't.
  *
  * This particular implementation simply continues the motions of the particles
- * in a straight line.
+ * in a straight line with decreasing velocity.
+ *
+ * This function takes a state not a particle list.
  *
  * Parameters:
  * state - the state at which to calculate the force
@@ -120,31 +113,43 @@ ParticleSystem.prototype.addParticles = function(newStates) {
 ParticleSystem.prototype.evalDeriv = function(state) {
     var key;
     var deriv = {};
-    for (key in this.state) {
-        var particle = this.state[key];
+    for (key in state) {
+        var particle = state[key];
         deriv[key] = [particle[2], particle[3], -0.08 * particle[2], -0.08 * particle[3], 1];
     }
     return deriv;
 };
 
 /*
- * Method: copyState
+ * Method: getState
  * Returns a copy of the state of the particle system.
  *
  * Member Of: ParticleSystem
  */
-ParticleSystem.prototype.copyState = function() {
-    return $.extend(true, {}, this.state);
+ParticleSystem.prototype.getState = function() {
+    var state = {};
+    var key;
+    for (key in this.particles) {
+        state[key] = this.particles[key].state;
+    }
+    return state;
 };
 
 /*
- * Method: getMaxAge
- * Returns the maximum age for a particle in this system.system.
+ * Method: setState
+ * Sets the state of each particle to the state mapped to the same key in the
+ * newState array passed as an argument to this function.
+ *
+ * Parameters:
+ * newState - the new state of the system.
  *
  * Member Of: ParticleSystem
  */
-ParticleSystem.prototype.getMaxAge = function() {
-    return this.maxAge;
+ParticleSystem.prototype.setState = function(newState) {
+    var key;
+    for (key in this.particles) {
+        this.particles[key].state = newState[key];
+    }
 };
 
 /*
@@ -157,24 +162,141 @@ ParticleSystem.prototype.getMaxAge = function() {
  *
  * Member Of: ParticleSystem
  */
-ParticleSystem.prototype.draw = function(ctx) {
+ParticleSystem.prototype.draw = function(game) {
     var key;
-    for (key in this.state) {
-        var particle = this.state[key];
-        //this.delegate.drawParticle(particle);
-        var scaleNum = 1.0 - (particle[4]/this.maxAge);
-        var color = scale([255.0, 255.0, 255.0], scaleNum);
-        var length = this.length * scaleNum;
-        var width = this.width/scaleNum;
-        var angle = Math.atan(-particle[3]/particle[2]);
-        var cosine = Math.cos(angle);
-        var sine = Math.sin(angle);
-        ctx.lineWidth = width;
-        ctx.strokeStyle = "rgb(" + Math.floor(color[0]).toString() + ", " + Math.floor(color[1]).toString() + ", " + Math.floor(color[2]).toString() + ")";
-        ctx.beginPath();
-        ctx.moveTo(particle[0] - length * 0.5 * cosine, particle[1] + length * 0.5 * sine);
-        ctx.lineTo(particle[0] + length * 0.5 * cosine, particle[1] - length * 0.5 * sine);
-        ctx.closePath();
-        ctx.stroke();
+    for (key in this.particles) {
+        var particle = this.particles[key];
+        if (particle.isDead()) {
+            delete this.particles[key];
+        }
+        else {
+            this.particles[key].draw(game);
+        }
     }
+};
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+/////////////////////// Basic Particles (and sprite) //////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
+
+/*
+ * Constructor: Particle
+ * Builds a new generic particle.
+ *
+ * The particle must include all information the derivative evaluator in the
+ * associated particle system might want in its state variable.
+ *
+ * Because there may be many of these particles, you most likely want to contain
+ * any shared values in the prototype.
+ */
+function Particle(x, y, velX, velY) {
+    this.state = [x, y, velX, velY, 0];
+    this.maxAge = 10;
+}
+
+/*
+ * Method: radius
+ * Returns the radius of the particle
+ *
+ * Member Of: Particle
+ */
+Particle.prototype.radius = 2;
+
+/*
+ * Method: draw
+ * Draws the particle.
+ *
+ * Parameters:
+ * game - the game object.
+ *
+ * Member Of: Particle
+ */
+Particle.prototype.draw = function(game) {
+    var scaleNum = 1.0 - (this.state[4]/this.maxAge);
+    var color = scale([255.0, 255.0, 255.0], scaleNum);
+    var radius = this.radius/scaleNum;
+    game.context.fillStyle = "rgb(" + Math.floor(color[0]).toString() + ", " + Math.floor(color[1]).toString() + ", " + Math.floor(color[2]).toString() + ")";
+    drawCircle(this.state[0], this.state[1], this.radius, game.context);
+    game.context.fill();
+};
+
+/*
+ * Method: isDead
+ * Returns true if the particle is dead and false otherwise. Dead particles are
+ * removed and never shown again. This particles dies if it is moved off screen
+ * or older than its maxAge attribute.
+ *
+ * Member Of: Particle
+ */
+Particle.prototype.isDead = function() {
+    return this.state[4] > this.maxAge ||
+        this.state[0] < 0 || this.state[0] > window.game.width ||
+        this.state[1] < 0 || this.state[1] > window.game.height;
+};
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+////////////////////////// Burst Particles System /////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
+
+/*
+ * Constructor: BurstSystem
+ * A particle system where the particles simply fly straight out and continue
+ * for quite a while.
+ */
+function BurstSystem() {
+    // body
+}
+
+inherits(BurstSystem, ParticleSystem);
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////// Wormhole Particles System ///////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
+
+/*
+ * Constructor: WormholeSystem
+ * A particle system where all particles are accelerated towards the center.
+ */
+function WormholeSystem() {
+    // body
+}
+
+inherits(WormholeSystem, ParticleSystem);
+
+/*
+ * Method: drawParticle
+ * Draws the given particle to the screen.
+ *
+ * Parameters:
+ * particle - the particle to draw
+ *
+ * Member Of: WormholeSystem
+ */
+WormholeSystem.prototype.drawParticle = function(particle) {
+    var scaleNum = 1.0 - (this.age/this.maxAge);
+    var color = scale([255.0, 255.0, 255.0], scaleNum);
+    var length = this.length * scaleNum;
+    var width = this.width/scaleNum;
+    var angle = Math.atan(-this.velY/this.velX);
+    var cosine = Math.cos(angle);
+    var sine = Math.sin(angle);
+    ctx.lineWidth = width;
+    ctx.strokeStyle = "rgb(" + Math.floor(color[0]).toString() + ", " + Math.floor(color[1]).toString() + ", " + Math.floor(color[2]).toString() + ")";
+    ctx.beginPath();
+    ctx.moveTo(this.x - length * 0.5 * cosine, this.y + length * 0.5 * sine);
+    ctx.lineTo(this.x + length * 0.5 * cosine, this.y - length * 0.5 * sine);
+    ctx.closePath();
+    ctx.stroke();
 };
