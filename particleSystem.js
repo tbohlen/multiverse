@@ -13,11 +13,13 @@ function eulerStep(system, timeStep) {
     var deriv = system.evalDeriv(currentState);
     var i;
     for (i = 0; i < currentState.length; i++) {
+        var particle = currentState[i];
 
-        currentState[i] = addVectors(currentState[i], scale(deriv[i], timeStep));
+        currentState[i] = addVectors(particle, scale(deriv[i], timeStep));
 
         // test for dead particles
-        if (currentState[i][4] > system.getMaxAge()) {
+        if (particle[4] > system.getMaxAge() || particle[0] < 0 || particle[0] > window.game.width || particle[1] < 0 || particle[1] > window.game.height) {
+            console.log("cull");
             currentState.splice(i, 1);
             i--;
         }
@@ -43,7 +45,8 @@ function eulerStep(system, timeStep) {
  */
 function ParticleSystem() {
     this.state = [];
-    this.length = 10;
+    this.length = 30;
+    this.width = 2;
     this.maxAge = 10;
 }
 
@@ -85,7 +88,7 @@ ParticleSystem.prototype.evalDeriv = function(state) {
     var deriv = [];
     for (i = 0; i < state.length; i++) {
         var particle = state[i];
-        deriv[i] = [particle[2], particle[3], 0, 0, 1];
+        deriv[i] = [particle[2], particle[3], -0.05 * particle[2], -0.05 * particle[3], 1];
     }
     return deriv;
 };
@@ -124,15 +127,18 @@ ParticleSystem.prototype.draw = function(ctx) {
     var i;
     for (i = 0; i < this.state.length; i++) {
         var particle = this.state[i];
-        var color = scale([255.0, 255.0, 255.0], 1.0 - (particle[4]/this.maxAge));
-        //console.log("color: " + color.toString());
+        var scaleNum = 1.0 - (particle[4]/this.maxAge);
+        var color = scale([255.0, 255.0, 255.0], scaleNum);
+        var length = this.length * scaleNum;
+        var width = this.width/scaleNum;
         var angle = Math.atan(-particle[3]/particle[2]);
         var cosine = Math.cos(angle);
         var sine = Math.sin(angle);
-        ctx.strokeStyle = "rgb(255, 255, 255)";
+        ctx.lineWidth = width;
+        ctx.strokeStyle = "rgb(" + Math.floor(color[0]).toString() + ", " + Math.floor(color[1]).toString() + ", " + Math.floor(color[2]).toString() + ")";
         ctx.beginPath();
-        ctx.moveTo(particle[0] - this.length * 0.5 * cosine, particle[1] + this.length * 0.5 * sine);
-        ctx.lineTo(particle[0] + this.length * 0.5 * cosine, particle[1] - this.length * 0.5 * sine);
+        ctx.moveTo(particle[0] - length * 0.5 * cosine, particle[1] + length * 0.5 * sine);
+        ctx.lineTo(particle[0] + length * 0.5 * cosine, particle[1] - length * 0.5 * sine);
         ctx.closePath();
         ctx.stroke();
     }

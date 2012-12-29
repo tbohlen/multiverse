@@ -1,6 +1,6 @@
 var drawLoopID;
 var logicLoopID;
-var LOGIC_LOOP_TIME = 1000/60;
+var LOGIC_LOOP_TIME = 5;
 var DRAW_LOOP_TIME = 1000/30;
 
 /*
@@ -214,13 +214,13 @@ function ParticleEmitter(x, y) {
     this.x = x;
     this.y = y;
     this.radius = 10;
-    this.burstRadius = 50;
-    this.particleVelocity = 2;
-    this.particleNumber = 100;
+    this.burstRadius = 300;
+    this.particleVelocity = 6;
+    this.particleNumber = 10;
     this.startFrame = 0;
-    this.framesBetweenEmits = 30;
+    this.framesBetweenEmits = 20;
     this.system = new ParticleSystem();
-    this.system.maxAge = 150;
+    this.system.maxAge = this.burstRadius/this.particleVelocity;
     this.dead = false;
     this.alive = false;
     this.logicIndex = -1;
@@ -259,7 +259,7 @@ ParticleEmitter.prototype.addParticles = function() {
     var i;
     var newParticles = []
     for (i = 0; i < this.particleNumber; i++) {
-        var angle = 2 * Math.PI * i / this.particleNumber;
+        var angle = 2 * Math.PI * (i + Math.random() - 0.5) / this.particleNumber;
         var velX = this.particleVelocity * Math.cos(angle);
         var velY = this.particleVelocity * Math.sin(angle);
         newParticles.push([this.x, this.y, velX, velY, 0]);
@@ -545,13 +545,13 @@ function logicLoop(game) {
  * to continue.
  */
 function loadGame(callback) {
-    var game = new Game();
-    game.blackholeImage = new Image();
+    window.game = new Game();
+    window.game.blackholeImage = new Image();
     console.log("Loading...");
-    game.blackholeImage.onload = function() {
-        callback(game);
+    window.game.blackholeImage.onload = function() {
+        callback(window.game);
     };
-    game.blackholeImage.src = "images/blackhole.png";
+    window.game.blackholeImage.src = "images/blackhole.png";
 }
 
 
@@ -563,7 +563,7 @@ $(document).ready(function() {
         // size the game and add the canvas to the screen
         game.resize();
 
-        var blackhole = new Blackhole(100, 100, 10);
+        var blackhole = new Blackhole(400, 200, 10);
         game.addSprite(blackhole, true, true);
 
         // start the loops
