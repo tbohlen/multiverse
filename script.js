@@ -213,12 +213,11 @@ Game.prototype.resize = function() {
 function ParticleEmitter(x, y) {
     this.x = x;
     this.y = y;
-    this.radius = 10;
+    this.radius = 15;
     this.burstRadius = 300;
-    this.particleVelocity = 6;
-    this.particleNumber = 10;
+    this.particleVelocity = 7;
+    this.emitRate = 4;
     this.startFrame = 0;
-    this.framesBetweenEmits = 20;
     this.system = new ParticleSystem();
     this.system.maxAge = this.burstRadius/this.particleVelocity;
     this.dead = false;
@@ -239,10 +238,10 @@ function ParticleEmitter(x, y) {
  */
 ParticleEmitter.prototype.doLogic = function(game) {
     if (this.alive && !this.dead) {
-        if ((game.logicFrame - this.startFrame)%this.framesBetweenEmits === 0) {
+        //if ((game.logicFrame - this.startFrame)%this.framesBetweenEmits === 0) {
             //emit a new round of particles
             this.addParticles();
-        }
+        //}
 
         // step forward the system
         eulerStep(this.system, LOGIC_LOOP_TIME/DRAW_LOOP_TIME);
@@ -258,10 +257,11 @@ ParticleEmitter.prototype.doLogic = function(game) {
 ParticleEmitter.prototype.addParticles = function() {
     var i;
     var newParticles = []
-    for (i = 0; i < this.particleNumber; i++) {
-        var angle = 2 * Math.PI * (i + Math.random() - 0.5) / this.particleNumber;
-        var velX = this.particleVelocity * Math.cos(angle);
-        var velY = this.particleVelocity * Math.sin(angle);
+    var newNum = Math.floor(Math.random() * this.emitRate);
+    for (i = 0; i < newNum; i++) {
+        var angle = 2 * Math.PI * (i + Math.random() - 0.5) / newNum;
+        var velX = this.particleVelocity * (Math.cos(angle) - 0.3 + Math.random() * 0.6);
+        var velY = this.particleVelocity * (Math.sin(angle) - 0.3 + Math.random() * 0.6);
         newParticles.push([this.x, this.y, velX, velY, 0]);
     }
     this.system.addParticles(newParticles);
@@ -283,9 +283,9 @@ ParticleEmitter.prototype.draw = function(game) {
         this.addParticles();
     }
     this.system.draw(game.context);
-    //game.context.fillStyle = "rgb(255, 255, 255)";
-    //drawCircle(this.x, this.y, this.radius, game.context);
-    //game.context.fill();
+    game.context.fillStyle = "rgb(0, 0, 0)";
+    drawCircle(this.x, this.y, this.radius, game.context);
+    game.context.fill();
 };
 
 /*

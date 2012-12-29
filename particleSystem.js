@@ -11,20 +11,26 @@
 function eulerStep(system, timeStep) {
     var currentState = system.copyState();
     var deriv = system.evalDeriv(currentState);
-    var i;
-    for (i = 0; i < currentState.length; i++) {
-        var particle = currentState[i];
+    var key;
+    for (key in currentState) {
+        var particle = currentState[key];
 
-        currentState[i] = addVectors(particle, scale(deriv[i], timeStep));
+        currentState[key] = addVectors(particle, scale(deriv[key], timeStep));
 
         // test for dead particles
         if (particle[4] > system.getMaxAge() || particle[0] < 0 || particle[0] > window.game.width || particle[1] < 0 || particle[1] > window.game.height) {
-            console.log("cull");
-            currentState.splice(i, 1);
-            i--;
+            delete currentState[key];
         }
     }
     system.state = currentState;
+}
+
+/*
+ * Function: trapezoidalStep
+ * Executes a single trapezoidal integration step forward of size timeStep.
+ */
+function trapezoidalStep(system, timeStep) {
+    // body
 }
 
 
@@ -44,7 +50,8 @@ function eulerStep(system, timeStep) {
  * a particles x, y, velX, velY, and time.
  */
 function ParticleSystem() {
-    this.state = [];
+    this.state = {};
+    this.lastIndex = -1;
     this.length = 30;
     this.width = 2;
     this.maxAge = 10;
@@ -64,7 +71,8 @@ function ParticleSystem() {
 ParticleSystem.prototype.addParticles = function(newStates) {
     var i;
     for (i = 0; i < newStates.length; i++) {
-        this.state.push(newStates[i]);
+        this.lastIndex++;
+        this.state[this.lastIndex] = newStates[i];
     }
 };
 
@@ -84,11 +92,11 @@ ParticleSystem.prototype.addParticles = function(newStates) {
  * Member Of: ParticleSystem
  */
 ParticleSystem.prototype.evalDeriv = function(state) {
-    var i;
-    var deriv = [];
-    for (i = 0; i < state.length; i++) {
-        var particle = state[i];
-        deriv[i] = [particle[2], particle[3], -0.05 * particle[2], -0.05 * particle[3], 1];
+    var key;
+    var deriv = {};
+    for (key in this.state) {
+        var particle = this.state[key];
+        deriv[key] = [particle[2], particle[3], -0.08 * particle[2], -0.08 * particle[3], 1];
     }
     return deriv;
 };
@@ -100,7 +108,7 @@ ParticleSystem.prototype.evalDeriv = function(state) {
  * Member Of: ParticleSystem
  */
 ParticleSystem.prototype.copyState = function() {
-    return $.extend(true, [], this.state);
+    return $.extend(true, {}, this.state);
 };
 
 /*
@@ -124,9 +132,9 @@ ParticleSystem.prototype.getMaxAge = function() {
  * Member Of: ParticleSystem
  */
 ParticleSystem.prototype.draw = function(ctx) {
-    var i;
-    for (i = 0; i < this.state.length; i++) {
-        var particle = this.state[i];
+    var key;
+    for (key in this.state) {
+        var particle = this.state[key];
         var scaleNum = 1.0 - (particle[4]/this.maxAge);
         var color = scale([255.0, 255.0, 255.0], scaleNum);
         var length = this.length * scaleNum;
