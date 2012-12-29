@@ -554,14 +554,14 @@ BurstSystem.prototype.kill = function(game) {
 function BlackholeSystem(x, y, radius, maxAge) {
     ParticleSystem.call(this, x, y);
 
-    this.blackholeRadius = radius + 40;
-    this.particleVelocity = 24.4;
-    this.emitRate = 15;
+    this.blackholeRadius = radius*1.5;
+    this.particleVelocity = 25;
+    this.maxDist = radius * 5;
+    this.minDist = radius * 5 - 1;
+    this.emitRate = radius/2;
     this.maxParticleAge = 500;
-    this.mass = 80000000;
-    this.velVar = 0.02;
-    this.maxDist = 350;
-    this.minDist = 349;
+    this.mass = 22000*radius*Math.pow(radius, 0.98);
+    this.velVar = 1.5/radius;
     this.maxEmittingAge = maxAge * DRAW_LOOP_TIME/LOGIC_LOOP_TIME;
     this.streams = 5;
     this.age = 0;
@@ -620,10 +620,10 @@ BlackholeSystem.prototype.addParticles = function(newStates) {
         var y = Math.sin(angle) * dist;
 
         // take the angle at 90 degrees, varied, as the start vel
-        var velX = this.particleVelocity * (Math.cos(angle + Math.PI/2) - this.velVar/2 + Math.random() * this.velVar);
-        var velY = this.particleVelocity * (Math.sin(angle + Math.PI/2) - this.velVar/2 + Math.random() * this.velVar);
+        var velX = this.particleVelocity * (Math.cos(angle + Math.PI * 0.5) - this.velVar/2 + Math.random() * this.velVar);
+        var velY = this.particleVelocity * (Math.sin(angle + Math.PI * 0.5) - this.velVar/2 + Math.random() * this.velVar);
 
-        var particle = new BlackholeParticle(this.x + x, this.y + y, velX, velY, scale(this.color, boundedRand(0.3, 0.8)), this.blackholeRadius);
+        var particle = new BlackholeParticle(this.x + x, this.y + y, velX, velY, scale(this.color, boundedRand(0.5, 1.0)), this.blackholeRadius);
         particle.maxAge = this.maxParticleAge;
         this.lastIndex++;
         this.particles[this.lastIndex] = particle;

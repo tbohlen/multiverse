@@ -45,6 +45,7 @@ function Game() {
 Game.prototype.finishLevel = function(win) {
     if (win) {
         this.context.fillStyle = "rgb(50, 50, 255)";
+        this.context.textSize
         this.context.fillText("Next Universe!", this.width/2, this.height/2);
     }
 };
@@ -266,7 +267,7 @@ Level.prototype.doLogic = function(game) {
         game.addSprite(burst, true, true);
     }
 
-    if (Math.random() > 0.9995) {
+    if (Math.random() > 0.995) {
         var blackhole = new Blackhole(game.width * 0.5, game.height*0.5, 20);
         blackhole.show(game);
     }
