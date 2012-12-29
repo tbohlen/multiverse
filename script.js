@@ -93,109 +93,6 @@ Game.prototype.resize = function() {
 
 
 
-///////////////////////////////////////////////////////////////////////////////
-////////////////////////////// BurstEmitter ///////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-
-
-/*
- * Constructor: ParticleEmitter
- * Constructs the abstract particle emitter. We will need far more specific
- * emitters for every application.
- *
- * Parameters:
- * x - the x coord of the emitter
- * y - the y coord of the emitter
- */
-function ParticleEmitter(x, y, radius) {
-    this.x = x;
-    this.y = y;
-    this.radius = radius;
-    this.burstRadius = 300;
-    this.particleVelocity = 6;
-    this.emitRate = 6;
-    this.startFrame = 0;
-    this.system = new ParticleSystem();
-    this.maxAge = this.burstRadius/this.particleVelocity;
-    this.dead = false;
-    this.alive = false;
-    this.logicIndex = -1;
-    this.drawIndex = -1;
-}
-
-/*
- * Method: doLogic
- * Runs the logic of the emitter. Namely, Emitting new particles and updating
- * the system.
- *
- * Parameters:
- * game - the game object.
- *
- * Member Of: ParticleEmitter
- */
-ParticleEmitter.prototype.doLogic = function(game) {
-    if (this.alive && !this.dead) {
-        this.addParticles();
-        // step forward the system
-        trapezoidalStep(this.system, LOGIC_LOOP_TIME/DRAW_LOOP_TIME);
-    }
-};
-
-/*
- * Method: addParticles
- * Adds more particles
- *
- * Member Of: ParticleEmitter
- */
-ParticleEmitter.prototype.addParticles = function() {
-    var i;
-    var newParticles = []
-    var newNum = Math.floor(Math.random() * this.emitRate);
-    for (i = 0; i < newNum; i++) {
-        var angle = 2 * Math.PI * (i + Math.random() - 0.5) / newNum;
-        var velX = this.particleVelocity * (Math.cos(angle) - 0.3 + Math.random() * 0.6);
-        var velY = this.particleVelocity * (Math.sin(angle) - 0.3 + Math.random() * 0.6);
-        var particle = new Particle(this.x, this.y, velX, velY);
-        particle.maxAge = this.maxAge;
-        newParticles.push(particle);
-    }
-    this.system.addParticles(newParticles);
-};
-
-/*
- * Method: draw
- * Draws the particle emitter and all its particles
- *
- * Parameters:
- * game - the game object.
- *
- * Member Of: ParticleEmitter
- */
-ParticleEmitter.prototype.draw = function(game) {
-    if (!this.dead && !this.alive) {
-        this.alive = true;
-        this.startFrame = game.logicFrame;
-        this.addParticles();
-    }
-    this.system.draw(game);
-    game.context.fillStyle = "rgb(0, 0, 0)";
-    drawCircle(this.x, this.y, this.radius, game.context);
-    game.context.fill();
-};
-
-/*
- * Method: kill
- * Kills the particle emitter.
- *
- * Member Of: ParticleEmitter
- */
-ParticleEmitter.prototype.kill = function(game) {
-    this.alive = false;
-    this.dead = true;
-    delete game.drawElements[this.drawIndex];
-    delete game.logicElements[this.logicIndex];
-};
-
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -225,11 +122,23 @@ function Blackhole(x, y, radius) {
     this.y = this.centerY - this.radius/2;
     this.drawIndex = -1;
     this.logicIndex = -1;
-    this.alive = false;
-    this.dead = false;
     this.maxTimeSteps = 3000;
-    this.emitter = new ParticleEmitter(this.centerX, this.centerY, this.radius);
+    this.system = new ParticleSystem(this.centerX, this.centerY, this.radius);
 }
+
+/*
+ * Method: show
+ * shows the blackhole by adding it to the games logic and draw lists.
+ *
+ * Parameters:
+ * game - the game object
+ *
+ * Member Of: Blackhole
+ */
+Blackhole.prototype.show = function(game) {
+    game.addSprite(this.system, true, true);
+    game.addSprite(this, true, true);
+};
 
 /*
  * Method: draw
@@ -241,14 +150,10 @@ function Blackhole(x, y, radius) {
  * Member Of: Blackhole
  */
 Blackhole.prototype.draw = function(game) {
-    if (!this.dead && !this.alive) {
-        this.alive = true;
-        game.addSprite(this.emitter, true, true);
-    }
+    game.context.fillStyle = "rgb(0, 0, 0)";
+    drawCircle(this.centerX, this.centerY, this.radius, game.context);
+    game.context.fill();
     this.timeStep++;
-    if (this.timeStep > this.maxTimeSteps) {
-        this.kill(game);
-    }
 };
 
 /*
@@ -275,7 +180,7 @@ Blackhole.prototype.contains = function(x, y) {
  * Member Of: Blackhole
  */
 Blackhole.prototype.doLogic = function(game) {
-    if (this.alive && !this.dead && this.contains(game.mouseX, game.mouseY)) {
+    if (this.contains(game.mouseX, game.mouseY)) {
         // if the mouse is within the shape and the blackhole is alive, go to
         // the next level
         game.finishLevel(true);
@@ -292,11 +197,12 @@ Blackhole.prototype.doLogic = function(game) {
  *
  * Member Of: Blackhole
  */
-Blackhole.prototype.kill = function(game) {
-    this.alive = false;
-    this.dead = true;
-    delete game.drawElements[this.drawIndex];
-    delete game.logicElements[this.logicIndex];
+Blackhole.prototype.isDead = function(game) {
+    if (this.timeStep > this.maxTimeSteps) {
+        this.system.dead = true;
+        return true;
+    }
+    return false;
 };
 
 
@@ -407,10 +313,17 @@ function drawLoop(game) {
     // clean the screen
     clearScreen(game, "rgb(0, 0, 0)");
 
-    // draw all drawElements
+    // draw all drawElements or kill them if they are dead
     for (var key in game.drawElements) {
         if (game.drawElements.hasOwnProperty(key)) {
-            game.drawElements[key].draw(game);
+            var element = game.drawElements[key];
+            if (element.isDead()) {
+                delete game.drawElements[element.drawIndex];
+                delete game.logicElements[element.logicIndex];
+            }
+            else {
+                element.draw(game);
+            }
         }
     }
 }
@@ -457,7 +370,7 @@ $(document).ready(function() {
         game.resize();
 
         var blackhole = new Blackhole(400, 200, 10);
-        game.addSprite(blackhole, true, true);
+        blackhole.show(game);
 
         // start the loops
         drawLoopId = window.setInterval(drawLoop, DRAW_LOOP_TIME, game);

@@ -65,13 +65,26 @@ function trapezoidalStep(system, timeStep) {
  * 
  * The system stores state as a vector of vectors, where each vector represents
  * a particles x, y, velX, velY, and time.
+ *
+ * Parameters:
+ * x - the x coord of the system
+ * y - the y coord of the system
  */
-function ParticleSystem() {
+function ParticleSystem(x, y, radius) {
+    this.x = x;
+    this.y = y;
+    this.burstRadius = 100;
+    this.particleVelocity = 4;
+    this.emitRate = 2;
+    this.maxAge = this.burstRadius/this.particleVelocity;
     this.particles = {};
     this.lastIndex = -1;
     this.length = 30;
     this.width = 2;
     this.maxAge = 10;
+    this.dead = false;
+    this.logicIndex = -1;
+    this.drawIndex = -1;
 }
 
 /*
@@ -87,9 +100,15 @@ function ParticleSystem() {
  */
 ParticleSystem.prototype.addParticles = function(newStates) {
     var i;
-    for (i = 0; i < newStates.length; i++) {
+    var newNum = Math.floor(Math.random() * this.emitRate);
+    for (i = 0; i < newNum; i++) {
+        var angle = 2 * Math.PI * (i + Math.random() - 0.5) / newNum;
+        var velX = this.particleVelocity * (Math.cos(angle) - 0.3 + Math.random() * 0.6);
+        var velY = this.particleVelocity * (Math.sin(angle) - 0.3 + Math.random() * 0.6);
+        var particle = new Particle(this.x, this.y, velX, velY);
+        particle.maxAge = this.maxAge;
         this.lastIndex++;
-        this.particles[this.lastIndex] = newStates[i];
+        this.particles[this.lastIndex] = particle;
     }
 };
 
@@ -115,7 +134,7 @@ ParticleSystem.prototype.evalDeriv = function(state) {
     var deriv = {};
     for (key in state) {
         var particle = state[key];
-        deriv[key] = [particle[2], particle[3], -0.08 * particle[2], -0.08 * particle[3], 1];
+        deriv[key] = [particle[2], particle[3], 0, 0, 1];
     }
     return deriv;
 };
@@ -153,6 +172,22 @@ ParticleSystem.prototype.setState = function(newState) {
 };
 
 /*
+ * Method: doLogic
+ * Runs the logic of the system. Namely, emitting new particles and updating
+ * the system.
+ *
+ * Parameters:
+ * game - the game object.
+ *
+ * Member Of: ParticleSystem
+ */
+ParticleSystem.prototype.doLogic = function(game) {
+    this.addParticles();
+    // step forward the system
+    trapezoidalStep(this, LOGIC_LOOP_TIME/DRAW_LOOP_TIME);
+};
+
+/*
  * Method: draw
  * Draws the particle system. This function can be replaced easily for
  * individual particle systems.
@@ -173,6 +208,16 @@ ParticleSystem.prototype.draw = function(game) {
             this.particles[key].draw(game);
         }
     }
+};
+
+/*
+ * Method: isDead
+ * Checks to see if the particle system is dead and can be removed.
+ *
+ * Member Of: ParticleSystem
+ */
+ParticleSystem.prototype.isDead = function() {
+    return this.dead;
 };
 
 
