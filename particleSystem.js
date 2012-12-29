@@ -30,7 +30,33 @@ function eulerStep(system, timeStep) {
  * Executes a single trapezoidal integration step forward of size timeStep.
  */
 function trapezoidalStep(system, timeStep) {
-    // body
+    // find the next state, given a full euler step
+    var currentState = system.copyState();
+    var deriv = system.evalDeriv(currentState);
+    var nextState = {};
+    var key;
+    for (key in currentState) {
+        var particle = currentState[key];
+
+        nextState[key] = addVectors(particle, scale(deriv[key], timeStep));
+    }
+
+    // find the derivative at this next state
+    var nextDeriv = system.evalDeriv(nextState);
+
+    // use the two derivatives to find a better approximate state
+    for (key in currentState) {
+        var particle = currentState[key];
+
+        currentState[key] = addVectors(particle, scale(addVectors(deriv[key], nextDeriv[key]), timeStep/2));
+
+        // test for dead particles
+        if (particle[4] > system.getMaxAge() || particle[0] < 0 || particle[0] > window.game.width || particle[1] < 0 || particle[1] > window.game.height) {
+            delete currentState[key];
+        }
+    }
+
+    system.state = currentState;
 }
 
 
@@ -135,6 +161,7 @@ ParticleSystem.prototype.draw = function(ctx) {
     var key;
     for (key in this.state) {
         var particle = this.state[key];
+        //this.delegate.drawParticle(particle);
         var scaleNum = 1.0 - (particle[4]/this.maxAge);
         var color = scale([255.0, 255.0, 255.0], scaleNum);
         var length = this.length * scaleNum;

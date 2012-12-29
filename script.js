@@ -125,9 +125,6 @@ function Game() {
     this.context = this.canvas[0].getContext("2d")
     this.width = this.canvas.width();
     this.height = this.canvas.height();
-    offset = this.canvas.offset();
-    this.offsetX = offset.left;
-    this.offsetY = offset.top;
     this.drawElements = {};
     this.logicElements = {};
     this.lastDrawIndex = -1;
@@ -192,6 +189,9 @@ Game.prototype.resize = function() {
     this.width = this.canvas.width();
     this.canvas.attr("height", this.height);
     this.canvas.attr("width", this.width);
+    offset = this.canvas.offset();
+    this.offsetX = offset.left;
+    this.offsetY = offset.top;
 };
 
 
@@ -210,10 +210,10 @@ Game.prototype.resize = function() {
  * x - the x coord of the emitter
  * y - the y coord of the emitter
  */
-function ParticleEmitter(x, y) {
+function ParticleEmitter(x, y, radius) {
     this.x = x;
     this.y = y;
-    this.radius = 15;
+    this.radius = radius;
     this.burstRadius = 300;
     this.particleVelocity = 7;
     this.emitRate = 4;
@@ -238,13 +238,9 @@ function ParticleEmitter(x, y) {
  */
 ParticleEmitter.prototype.doLogic = function(game) {
     if (this.alive && !this.dead) {
-        //if ((game.logicFrame - this.startFrame)%this.framesBetweenEmits === 0) {
-            //emit a new round of particles
-            this.addParticles();
-        //}
-
+        this.addParticles();
         // step forward the system
-        eulerStep(this.system, LOGIC_LOOP_TIME/DRAW_LOOP_TIME);
+        trapezoidalStep(this.system, LOGIC_LOOP_TIME/DRAW_LOOP_TIME);
     }
 };
 
@@ -333,7 +329,7 @@ function Blackhole(x, y, radius) {
     this.alive = false;
     this.dead = false;
     this.maxTimeSteps = 3000;
-    this.emitter = new ParticleEmitter(this.centerX, this.centerY);
+    this.emitter = new ParticleEmitter(this.centerX, this.centerY, this.radius);
 }
 
 /*
@@ -350,10 +346,6 @@ Blackhole.prototype.draw = function(game) {
         this.alive = true;
         game.addSprite(this.emitter, true, true);
     }
-    //game.context.drawImage(game.blackholeImage, this.x, this.y);
-    //game.context.fillStyle = "rgb(200, 200, 200)";
-    //drawCircle(this.centerX, this.centerY, this.radius, game.context);
-    //game.context.fill();
     this.timeStep++;
     if (this.timeStep > this.maxTimeSteps) {
         this.kill(game);
@@ -384,7 +376,7 @@ Blackhole.prototype.contains = function(x, y) {
  * Member Of: Blackhole
  */
 Blackhole.prototype.doLogic = function(game) {
-    if (this.alive && this.contains(game.mouseX, game.mouseY)) {
+    if (this.alive && !this.dead && this.contains(game.mouseX, game.mouseY)) {
         // if the mouse is within the shape and the blackhole is alive, go to
         // the next level
         game.finishLevel(true);
@@ -427,6 +419,7 @@ function Level() {
     this.started = false;
     this.stopped = false;
     this.sprites = {};
+    this.startFrame = 0;
 }
 
 /*
@@ -439,13 +432,14 @@ function Level() {
  * Member Of: Level
  */
 Level.prototype.doLogic = function(game) {
-    if (!this.stopped) {
+    if (!this.started && !this.stopped) {
         this.started = true;
+        this.startFrame = game.logicFrame;
     }
-    //if (Math.random() > 0.8) {
-        //var sprite = new Sprite();
-        //this.
-    //}
+    if (Math.random() > 0.8) {
+        var sprite = new Sprite();
+        game.addSprite(sprite, true, true);
+    }
 };
 
 /*
@@ -573,8 +567,6 @@ $(document).ready(function() {
         ///////////////////////////////////////////////////////////////////////////
         ///////////////////////////// Event Handlers //////////////////////////////
         ///////////////////////////////////////////////////////////////////////////
-
-        //$(document).on("resize", game.resize);
 
         game.canvas.on('mousemove', function(ev) {
             // when the mouse is moved, update the position
