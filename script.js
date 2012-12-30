@@ -1,8 +1,8 @@
 var drawLoopID;
 var logicLoopID;
-var LOGIC_LOOP_TIME = 4;
+var LOGIC_LOOP_TIME = 8;
 var DRAW_LOOP_TIME = 1000/30;
-var colors = [[200, 75, 75], [75, 200, 125], [100, 100, 200], [175, 175, 50]]
+var colors = [[255, 100, 100], [75, 255, 125], [100, 100, 200], [175, 175, 50]]
 
 
 
@@ -29,24 +29,35 @@ function Game() {
     this.lastLogicIndex = -1;
     this.drawFrame = 0;
     this.logicFrame = 0;
+
+    this.nextLevelIndex = 0
 }
 
 /*
- * Method: finishLevel
- * Finishes the current level by removing the old level logic and replacing it
- * with the next level logic. The user is also notified (do not know how just
- * yet) and the response is difference depending on the win parameter.
- *
- * Parameters:
- * win - whether the level was won.
+ * Method: nextLevel
+ * Starts the next level.
  *
  * Member Of: Game
  */
-Game.prototype.finishLevel = function(win) {
-    if (win) {
-        this.context.fillStyle = "rgb(50, 50, 255)";
-        this.context.textSize
-        this.context.fillText("Next Universe!", this.width/2, this.height/2);
+Game.prototype.nextLevel = function() {
+    if  (this.nextLevelIndex) {
+        this.currentLevel.kill(this);
+    }
+    this.context.fillStyle = "rgb(255, 255, 255)";
+    this.context.font = "40px helvetica";
+
+    if(window.gameLevels.length > this.nextLevelIndex) {
+        var coords = getTextXY("Next Universe!", this.context);
+        console.log("coords", coords.toString());
+        this.context.fillText("Next Universe!", coords[0], coords[1]);
+
+        this.currentLevel = new window.gameLevels[this.nextLevelIndex]();
+        this.addSprite(this.currentLevel, false, true);
+        this.nextLevelIndex++;
+    }
+    else {
+        var coords = getTextXY("Winner!", this.context);
+        this.context.fillText("Winner!", coords[0], coords[1]);
     }
 };
 
@@ -124,7 +135,7 @@ function Blackhole(x, y, radius) {
     this.y = this.centerY - this.radius/2;
     this.drawIndex = -1;
     this.logicIndex = -1;
-    this.maxAge = 15;
+    this.maxAge = 8;
     this.system = new BlackholeSystem(this.centerX, this.centerY, this.radius, this.maxAge);
 }
 
@@ -185,7 +196,7 @@ Blackhole.prototype.doLogic = function(game) {
     if (this.contains(game.mouseX, game.mouseY)) {
         // if the mouse is within the shape and the blackhole is alive, go to
         // the next level
-        game.finishLevel(true);
+        game.nextLevel();
     }
 };
 
@@ -214,86 +225,6 @@ Blackhole.prototype.isDead = function(game) {
  */
 Blackhole.prototype.kill = function(game) {
     this.system.dead = true;
-};
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////// Level ////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-
-
-
-/*
- * Constructor: Level
- * A level represents all the logic behind a single level of the game.
- * Generally, this means it has a doLogic function that is called by the main
- * logic loop and displays various queues to the screen to help the player find
- * the blackhole before it appears.
- */
-function Level() {
-    this.won = false;
-    this.sprites = {};
-    this.startFrame = 0;
-    this.logicIndex = -1;
-}
-
-/*
- * Method: show
- * Starts the level by adding it into the game.
- *
- * Parameters:
- * game - the game object
- *
- * Member Of: Level
- */
-Level.prototype.show = function(game) {
-    game.addSprite(this, false, true);
-    this.startFrame = game.logicFrame;
-};
-
-/*
- * Method: doLogic
- * Runs the logic of the level. This creates and removes sprites from the game.
- *
- * Parameters:
- * game - the game object.
- *
- * Member Of: Level
- */
-Level.prototype.doLogic = function(game) {
-    if (Math.random() > 0.99) {
-        var burst = new BurstSystem(game.width * Math.random(), game.height * Math.random(), colors[Math.floor(Math.random() * 4)]);
-        game.addSprite(burst, true, true);
-    }
-
-    if (Math.random() > 0.995) {
-        var blackhole = new Blackhole(game.width * 0.5, game.height*0.5, 20);
-        blackhole.show(game);
-    }
-};
-
-/*
- * Method: kill
- * Ends the level. Right now this does nothing.
- *
- * Parameters:
- * game - the game obj
- *
- * Member Of: Level
- */
-Level.prototype.kill = function(game) {
-};
-
-/*
- * Method: isDead
- * Checks to see if the level is over and can be disposed of. If it has been
- * won, it can be disposed of.
- *
- * Member Of: Level
- */
-Level.prototype.isDead = function() {
-    return this.won;
 };
 
 
@@ -403,9 +334,7 @@ $(document).ready(function() {
         console.log("loaded");
         // size the game and add the canvas to the screen
         game.resize();
-
-        var level = new Level();
-        level.show(game);
+        game.nextLevel();
 
         // start the loops
         drawLoopId = window.setInterval(drawLoop, DRAW_LOOP_TIME, game);
