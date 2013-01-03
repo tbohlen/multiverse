@@ -1,3 +1,6 @@
+I've decided not to work on this any further. I don't think it promises to be
+very entertaining in its current form.
+
 Multiverse
 ----------
 

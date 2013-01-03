@@ -48,7 +48,6 @@ Game.prototype.nextLevel = function() {
 
     if(window.gameLevels.length > this.nextLevelIndex) {
         var coords = getTextXY("Next Universe!", this.context);
-        console.log("coords", coords.toString());
         this.context.fillText("Next Universe!", coords[0], coords[1]);
 
         this.currentLevel = new window.gameLevels[this.nextLevelIndex]();
@@ -125,6 +124,7 @@ Game.prototype.resize = function() {
  * radius - the radius of the collision area of the blackhole
  */
 function Blackhole(x, y, radius) {
+    this.unused = true;
     this.age = 0;
     this.centerX = x;
     this.centerY = y;
@@ -193,10 +193,11 @@ Blackhole.prototype.contains = function(x, y) {
  * Member Of: Blackhole
  */
 Blackhole.prototype.doLogic = function(game) {
-    if (this.contains(game.mouseX, game.mouseY)) {
+    if (this.contains(game.mouseX, game.mouseY) && this.unused) {
         // if the mouse is within the shape and the blackhole is alive, go to
         // the next level
         game.nextLevel();
+        this.unused = false;
     }
 };
 
@@ -344,10 +345,17 @@ $(document).ready(function() {
         ///////////////////////////// Event Handlers //////////////////////////////
         ///////////////////////////////////////////////////////////////////////////
 
-        game.canvas.on('mousemove', function(ev) {
+        $(document).on('mousemove', function(ev) {
             // when the mouse is moved, update the position
             game.mouseX = ev.pageX - game.offsetX;
             game.mouseY = ev.pageY - game.offsetY;
         });
+
+        $(document).on('keypress', function(ev) {
+            // pressing 1 allows for level skipping
+            if (ev.keycode === 49) {
+                window.game.nextLevel();
+            }
+        })
     });
 });
