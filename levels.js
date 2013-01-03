@@ -158,11 +158,11 @@ inherits(LevelTwo, LevelOne); // TODO: make an abstract level object
  * Member Of: LevelTwo
  */
 LevelTwo.prototype.doLogic = function(game) {
-    if (Math.random() > 0.991) {
+    if (Math.random() > 0.98) {
         this.showFakeBlackhole();
     }
 
-    if (Math.random() > 0.995 && !this.showingBlackhole) {
+    if (Math.random() > 0.992 && !this.showingBlackhole) {
         console.log("blackhole!");
         this.showBlackhole()
     }
@@ -235,6 +235,12 @@ LevelTwo.prototype.showBlackhole = function() {
         blackhole.show(game);
     };
     this.timeouts.push(window.setTimeout(makeBlackhole, numBursts*timing))
+    // push one last timeout function to clear the timeouts after they have
+    // executed and to clear showingBlackhole
+    this.timeouts.push(window.setTimeout(
+        function(level){
+            level.showingBlackhole = false;
+        }, (numBursts+0.1)*timing, this))
 };
 
 /*
